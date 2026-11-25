@@ -1,0 +1,9 @@
+{
+  "name": "tamal/pipedoc-iq",
+  "description": "PipeDoc IQ — industrial document & report automation (WordPress plugin)",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": { "php": ">=7.4", "phpoffice/phpspreadsheet": "^2.0" },
+  "suggest": { "mpdf/mpdf": "Optional HTML->PDF engine", "phpoffice/phpword": "Optional advanced DOCX processing" },
+  "config": { "optimize-autoloader": true }
+}

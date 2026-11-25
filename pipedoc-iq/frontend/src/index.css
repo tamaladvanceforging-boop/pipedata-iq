@@ -1,0 +1,17 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+:root { --bg: #F4F4F5; --card: #FFFFFF; --fg: #18181B; --muted: #64748B; --line: #E4E4E7; }
+.dark { --bg: #0F0F12; --card: #18181B; --fg: #F4F4F5; --muted: #A1A1AA; --line: #2E2E33; }
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: Inter, system-ui, sans-serif; font-size: 14px; }
+@layer components {
+  .card { @apply rounded-xl border; background: var(--card); border-color: var(--line); }
+  .btn { @apply inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary { @apply btn bg-brand text-white hover:bg-orange-700; }
+  .btn-ghost { @apply btn border hover:bg-black/5 dark:hover:bg-white/10; border-color: var(--line); }
+  .btn-danger { @apply btn bg-err text-white hover:bg-red-700; }
+  .input { @apply w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/40; background: var(--card); border-color: var(--line); color: var(--fg); }
+  .lbl { @apply mb-1 block text-xs font-medium; color: var(--muted); }
+  .th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap; color: var(--muted); }
+  .td { @apply px-3 py-2 whitespace-nowrap; }
+}
+.font-head { font-family: Manrope, Inter, sans-serif; }

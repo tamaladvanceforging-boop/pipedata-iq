@@ -1,0 +1,49 @@
+import { useEffect, useState } from 'react';
+import { HardDriveDownload, Upload, ImageUp, Save } from 'lucide-react';
+import { api, download, list, Row, create, update } from '../api';
+import { useApp } from '../ctx';
+import { Drawer, PageHead, Spinner } from '../ui';
+import { EntityPage } from './EntityPage';
+
+const ASSETS: [string, string][] = [['logo_path', 'Company logo (PNG/JPG/SVG)'], ['letterhead_path', 'Letterhead (PNG/JPG/PDF/DOCX)'], ['stamp_path', 'Company stamp (transparent PNG)'], ['signature_path', 'Authorized signature (transparent PNG)'], ['qc_stamp_path', 'Quality control stamp'], ['inspection_stamp_path', 'Inspection stamp']];
+export function CompanyProfiles() {
+  const { toast } = useApp(); const [co, setCo] = useState<Row | null>(null); const [busy, setBusy] = useState('');
+  const up = async (col: string, f?: File) => { if (!f || !co) return; setBusy(col); const fd = new FormData(); fd.append('file', f); try { await api(`assets/company_profiles/${co.id}/${col}`, { method: 'POST', form: fd }); toast('Uploaded to private storage'); setCo({ ...co, [col]: 'set' }); } catch (e: any) { toast(e.message, 'err'); } finally { setBusy(''); } };
+  return (<>
+    <EntityPage entity="company_profiles" title="Company Profiles" sub="Stamps and signatures are stored privately and every access is audited" extra={(r) => <button className="btn-ghost !px-2 !py-1" title="Upload logo / stamp / signature" onClick={() => setCo(r)}><ImageUp size={14} /></button>} />
+    {co && <Drawer title={`Assets — ${co.company_name}`} onClose={() => setCo(null)}><div className="space-y-3">{ASSETS.map(([c, l]) => <label key={c} className="card flex cursor-pointer items-center justify-between p-3 text-sm hover:border-brand"><span>{l}{co[c] ? <span className="ml-2 text-xs text-ok">✓ uploaded</span> : ''}</span><span className="btn-ghost !py-1 text-xs">{busy === c ? <Spinner /> : <Upload size={13} />} Choose</span><input type="file" className="hidden" accept=".png,.jpg,.jpeg,.svg,.pdf,.docx" onChange={(e) => up(c, e.target.files?.[0])} /></label>)}</div><p className="mt-3 text-xs opacity-60">Files are validated by content type, renamed, and kept outside the public web root. SVGs with scripts are rejected.</p></Drawer>}
+  </>);
+}
+
+export function Backup() {
+  const { toast, confirm } = useApp(); const [busy, setBusy] = useState(false);
+  const bk = async () => { setBusy(true); try { const r = await api('backup'); download(r.filename, r.content, 'application/json'); toast('Backup downloaded'); } catch (e: any) { toast(e.message, 'err'); } finally { setBusy(false); } };
+  const rs = async (f?: File) => { if (!f) return; if (!(await confirm('Restore replaces ALL current PipeDoc IQ data with the backup. Download a fresh backup first. Continue?'))) return; setBusy(true); const fd = new FormData(); fd.append('file', f); fd.append('confirm', 'yes'); try { const r = await api('restore', { method: 'POST', form: fd }); toast(`Restored ${r.restored_rows} rows`); } catch (e: any) { toast(e.message, 'err'); } finally { setBusy(false); } };
+  return (<div className="max-w-2xl"><PageHead title="Backup / Restore" sub="Database backup as JSON (API keys are never included; uploaded files are not included — copy the pdq-private uploads folder separately)." />
+    <div className="grid gap-4 sm:grid-cols-2"><div className="card p-4"><h3 className="mb-2 font-head font-bold">Create backup</h3><button className="btn-primary" onClick={bk} disabled={busy}>{busy ? <Spinner /> : <HardDriveDownload size={14} />} Download backup</button></div>
+      <div className="card p-4"><h3 className="mb-2 font-head font-bold">Restore backup</h3><label className="btn-ghost cursor-pointer"><Upload size={14} /> Choose backup file<input type="file" className="hidden" accept=".json" onChange={(e) => rs(e.target.files?.[0])} /></label></div></div></div>);
+}
+
+export function Settings() {
+  const { dark, setDark, toast, confirm } = useApp(); const [demo, setDemo] = useState<Row | null>(null); const [dbusy, setDbusy] = useState(false); const [fmt, setFmt] = useState('{PFX}/{YYYY}/{SEQ4}'); const [rowId, setRowId] = useState<number | null>(null); const [info, setInfo] = useState<Row | null>(null);
+  useEffect(() => { list('application_settings', { filters: { setting_key: 'numbering_format' } }).then((r) => { if (r.items[0]) { setFmt(r.items[0].setting_value); setRowId(r.items[0].id); } }); api('system/info').then(setInfo).catch(() => {}); api('demo/status').then(setDemo).catch(() => {}); }, []);
+  const demoAct = async (kind: 'load' | 'remove') => { if (kind === 'remove' && !(await confirm('Remove all DEMO records (customer, PO, pipes, heat number, tests)? Your own data is not touched. Documents already generated stay in the archive.'))) return; setDbusy(true); try { setDemo(await api('demo/' + kind, { method: 'POST' })); toast(kind === 'load' ? 'Demo data loaded' : 'Demo data removed'); } catch (e: any) { toast(e.message, 'err'); } finally { setDbusy(false); } };
+  const save = async () => { try { const r = rowId ? await update('application_settings', rowId, { setting_value: fmt }) : await create('application_settings', { setting_key: 'numbering_format', setting_value: fmt }); setRowId(r.id); toast('Saved'); } catch (e: any) { toast(e.message, 'err'); } };
+  const ok = (b: boolean) => <span className={b ? 'text-ok' : 'text-warn'}>{b ? '✓ available' : '✕ not available'}</span>;
+  return (<div className="max-w-3xl space-y-4"><PageHead title="Application Settings" />
+    <div className="card p-4"><h3 className="mb-2 font-head font-bold">Appearance</h3><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dark} onChange={(e) => setDark(e.target.checked)} /> Dark mode</label></div>
+    <div className="card p-4"><h3 className="mb-2 font-head font-bold">Demo data</h3><p className="mb-3 text-xs opacity-70">Loads a small clearly-labelled DEMO set (customer, purchase order with 2 items, 3 seamless pipe records, 1 heat number with chemical &amp; mechanical tests) so you can try the Document Generator end-to-end. Test results are <b>fictitious</b>, records are created <i>unverified</i>, and one click removes them.</p><div className="flex gap-2"><button className="btn-primary" disabled={dbusy || !!demo?.loaded} onClick={() => demoAct('load')}>{dbusy && <Spinner />} Load demo data</button><button className="btn-ghost" disabled={dbusy || !demo?.loaded} onClick={() => demoAct('remove')}>Remove demo data</button></div>{demo?.loaded && <p className="mt-2 text-xs text-ok">✓ Demo data is loaded.</p>}</div>
+    <div className="card p-4"><h3 className="mb-2 font-head font-bold">Document numbering</h3><p className="mb-2 text-xs opacity-60">Tokens: {'{PFX} {YYYY} {YY} {MM} {SEQ} {SEQ3} {SEQ4} {SEQ5}'}</p><div className="flex gap-2"><input className="input font-mono" value={fmt} onChange={(e) => setFmt(e.target.value)} /><button className="btn-primary" onClick={save}><Save size={14} /> Save</button></div></div>
+    <div className="card p-4"><h3 className="mb-2 font-head font-bold">Server capabilities</h3>{info ? <ul className="space-y-1 text-sm"><li>PHP {info.php}</li><li>ZipArchive (DOCX/XLSX processing): {ok(info.zip)}</li><li>Sodium encryption: {ok(info.sodium)} <span className="text-xs opacity-60">(OpenSSL AES-256-GCM is used otherwise)</span></li><li>PhpSpreadsheet (XLSX import): {ok(info.phpspreadsheet)} <span className="text-xs opacity-60">(run composer install in the plugin folder)</span></li><li>LibreOffice (PDF conversion): {ok(info.libreoffice)}</li><li>Max upload size: {info.upload_max}</li></ul> : <Spinner />}</div></div>);
+}
+
+export function Help() {
+  const sec = (t: string, items: string[]) => <div className="card p-4"><h3 className="mb-2 font-head font-bold">{t}</h3><ul className="list-disc space-y-1 pl-5 text-sm">{items.map((i) => <li key={i}>{i}</li>)}</ul></div>;
+  return (<div className="max-w-4xl space-y-4"><PageHead title="Help & Documentation" sub="Full manuals are included in the plugin's docs folder." />
+    {sec('Quick start', ['1. Company Profiles → add your company and upload logo/stamp/signature.', '2. Import / Export → load your engineering dataset (CSV/JSON/XLSX). Review the column mapping before importing.', '3. Customers, Purchase Orders, Heat Numbers → enter your real records; mark heats verified after checking test results.', '4. Template Studio → upload your Word/Excel format containing {{placeholders}}, review mapping, mark verified.', '5. Document Generator → follow the 10 steps; documents are created as drafts, reviewed, approved and then issued.'])}
+    {sec('Keyboard shortcuts', ['Ctrl/⌘ + K — command palette & global search', 'Ctrl/⌘ + B — collapse / expand sidebar', 'Esc — close dialogs and drawers'])}
+    {sec('Data integrity rules', ['Engineering values are never invented — missing values stay blank and are flagged.', 'Duplicated heat numbers are created unverified and must be re-verified before issuance.', 'Issued documents are immutable; use “Create revision” for changes.', 'Stamp/signature images are visual only — not cryptographic digital signatures.', 'External inspection approvals and statutory certificates must come from the relevant authority.'])}
+    {sec('Placeholders', ['{{company_name}} {{company_address}} {{customer_name}} {{po_number}} {{po_date}} {{certificate_number}} {{certificate_date}}', '{{item_description}} {{material_grade}} {{heat_number}} {{quantity}} {{outside_diameter}} {{wall_thickness}} {{schedule}} {{pressure_class}} {{unit_weight}} {{total_weight}}', '{{chemical_composition}} {{mechanical_properties}} {{company_stamp}} {{authorized_signature}}', 'Table rows containing item placeholders (e.g. {{item_description}}, {{quantity}}, {{sr_no}}) repeat once per item line.'])}
+  </div>);
+}
+export { HardDriveDownload };
